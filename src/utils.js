@@ -1070,3 +1070,35 @@ export function binarySearch(arr, el, key = (el) => el) {
   }
   return left;
 }
+
+export function sendEventToGA4(eventName, additionalPayload) {
+  if (!additionalPayload) {
+    additionalPayload = {};
+  }
+  const postRequestTimestamp = new Date().toISOString();
+  gtag('get', 'G-HZ5RJ58ZF9', 'client_id', (clientId) => {
+    const payload = {
+      client_id: clientId,
+      events: [{
+        name: eventName,
+        params: {
+          cilent_id: localStorage.getItem('prebid.client_id'),
+          session_id: localStorage.getItem('prebid.session_id'),
+          event_name: eventName,
+          time_stamp: postRequestTimestamp,
+          ...additionalPayload
+        }
+      }]
+    };
+
+    console.log(`XXX Sending event (${eventName}) to GA4`, payload);
+    fetch('https://www.google-analytics.com/mp/collect?measurement_id=G-HZ5RJ58ZF9&api_secret=qF3YrfxBTjmfe6sE_8aCMA', {
+      mode: 'no-cors',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  });
+}

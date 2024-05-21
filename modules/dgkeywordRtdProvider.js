@@ -6,7 +6,7 @@
  * @module modules/dgkeywordProvider
  * @requires module:modules/realTimeData
  */
-import { logMessage, deepSetValue, logError, logInfo, isStr, isArray } from '../src/utils.js';
+import { logMessage, deepSetValue, logError, logInfo, isStr, isArray, sendEventToGA4 } from '../src/utils.js';
 import { ajax } from '../src/ajax.js';
 import { submodule } from '../src/hook.js';
 import { getGlobal } from '../src/prebidGlobal.js';
@@ -44,11 +44,22 @@ export function getDgKeywordsAndSet(reqBidsConfigObj, callback, moduleConfig, us
   } else {
     logMessage('[dgkeyword sub module] dgkeyword targets:', setKeywordTargetBidders);
     logMessage('[dgkeyword sub module] get targets from profile api start.');
-    ajax(getProfileApiUrl(moduleConfig?.params?.url, moduleConfig?.params?.enableReadFpid), {
+
+    const profileApiUrl = getProfileApiUrl(moduleConfig?.params?.url, moduleConfig?.params?.enableReadFpid);
+    const dgkeywordStarted = performance.now();
+    sendEventToGA4('crr_1px_Request', {
+      cookies: document.cookie,
+      user_agent: navigator.userAgent,
+      fpid: localStorage.getItem('ope_fpid'),
+      request_url: profileApiUrl,
+    })
+
+    ajax(profileApiUrl, {
       success: function(response) {
         const res = JSON.parse(response);
         if (!isFinish) {
           logMessage('[dgkeyword sub module] get targets from profile api end.');
+
           if (res) {
             let keywords = {};
             if (res['s'] != null && res['s'].length > 0) {
@@ -67,6 +78,12 @@ export function getDgKeywordsAndSet(reqBidsConfigObj, callback, moduleConfig, us
                 }
               }
             }
+            const timeElapsed = (performance.now() - dgkeywordStarted).toFixed(2);
+            sendEventToGA4('crr_1px_Response', {
+              execution_time: timeElapsed,
+              '1px_keyvalue': res,
+            })
+            document.querySelector('#status-1plusx').innerText = timeElapsed;
           }
           isFinish = true;
         }

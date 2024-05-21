@@ -16,7 +16,8 @@ import {
   logWarn, memoize,
   parseQueryStringParameters,
   parseSizesInput, pick,
-  uniques
+  uniques,
+  sendEventToGA4,
 } from '../utils.js';
 import {hook} from '../hook.js';
 import {auctionManager} from '../auctionManager.js';
@@ -290,6 +291,16 @@ export function newBidder(spec) {
       processBidderRequests(spec, validBidRequests.map(tidGuard.bidRequest), tidGuard.bidderRequest(bidderRequest), ajax, configEnabledCallback, {
         onRequest: requestObject => events.emit(CONSTANTS.EVENTS.BEFORE_BIDDER_HTTP, bidderRequest, requestObject),
         onResponse: (resp) => {
+
+          const timeElapsed = (performance.now() - localStorage.getItem('appnexusStarted')).toFixed(2)
+          const trgTag = resp.body.tags.find(() => true)
+          sendEventToGA4('crr_APX_Response', {
+            auction_id: trgTag?.auction_id,
+            is_nobid: trgTag?.nobid,
+            execution_time: timeElapsed,
+          })
+          document.querySelector('#status-appnexus').innerText = timeElapsed;
+
           onTimelyResponse(spec.code);
           responses.push(resp)
         },

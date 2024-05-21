@@ -20,6 +20,7 @@ import {
   mergeDeep,
   shuffle,
   timestamp,
+  sendEventToGA4,
 } from './utils.js';
 import {decorateAdUnitsWithNativeParams, nativeAdapters} from './native.js';
 import {newBidder} from './adapters/bidderFactory.js';
@@ -454,6 +455,17 @@ adapterManager.callBids = (adUnits, bidRequests, addBidResponse, doneCb, request
     const adapter = _bidderRegistry[bidderRequest.bidderCode];
     config.runWithBidder(bidderRequest.bidderCode, () => {
       logMessage(`CALLING BIDDER`);
+      if (bidderRequest.bidderCode === 'dg') {
+        const appnexusStarted = performance.now();
+        localStorage.setItem('appnexusStarted', appnexusStarted);
+        sendEventToGA4('crr_APX_Request', {
+          cookies: document.cookie,
+          user_agent: navigator.userAgent,
+          placement_id: bidderRequest.bids?.find(b => b.bidder == 'dg')?.params?.placementId,
+          auction_id: bidderRequest.auctionId,
+        })
+      }
+
       events.emit(CONSTANTS.EVENTS.BID_REQUESTED, bidderRequest);
     });
     let ajax = ajaxBuilder(requestBidsTimeout, requestCallbacks ? {
