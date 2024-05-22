@@ -45,7 +45,6 @@ import {getHighestCpm} from './utils/reducers.js';
 import {fillVideoDefaults} from './video.js';
 
 localStorage.setItem('prebid.started', performance.now());
-localStorage.setItem('prebid.client_id', `client_${Math.random().toString(36).substr(2, 9)}`);
 localStorage.setItem('prebid.session_id', `session_${new Date().getTime()}`);
 
 const pbjsInstance = getGlobal();

@@ -1082,11 +1082,10 @@ export function sendEventToGA4(eventName, additionalPayload) {
       events: [{
         name: eventName,
         params: {
-          cilent_id: localStorage.getItem('prebid.client_id'),
+          ...additionalPayload,
           session_id: localStorage.getItem('prebid.session_id'),
-          event_name: eventName,
           time_stamp: postRequestTimestamp,
-          ...additionalPayload
+          current_url: window.location.href,
         }
       }]
     };

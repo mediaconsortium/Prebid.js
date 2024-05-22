@@ -81,7 +81,7 @@ export function getDgKeywordsAndSet(reqBidsConfigObj, callback, moduleConfig, us
             const timeElapsed = (performance.now() - dgkeywordStarted).toFixed(2);
             sendEventToGA4('crr_1px_Response', {
               execution_time: timeElapsed,
-              '1px_keyvalue': res,
+              onepx_keyvalue: JSON.stringify(res),
             })
             document.querySelector('#status-1plusx').innerText = timeElapsed;
           }
