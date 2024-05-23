@@ -1071,10 +1071,32 @@ export function binarySearch(arr, el, key = (el) => el) {
   return left;
 }
 
-export function sendEventToGA4(eventName, additionalPayload) {
+function getSessionId() {
+  const gaCookie = document.cookie.split('; ').find(row => row.startsWith('_ga'));
+  if (!gaCookie) return null;
+  const gaParts = gaCookie.split('.');
+  if (gaParts.length < 4) return null;
+  return gaParts[2] + '.' + gaParts[3];
+}
+
+async function getIpAndGeoLocation() {
+  if (localStorage.getItem('prebid_ip') && localStorage.getItem('prebid_geoLocation')) {
+    return {ip: localStorage.getItem('prebid_ip'), geoLocation: localStorage.getItem('prebid_geoLocation')};
+  }
+  const ip = (await fetch('https://api.ipify.org?format=json').then(r => r.json()))?.ip
+  if (!ip) return {ip: null, geoLocation: null};
+  const geoLocation = (await fetch(`https://ipapi.co/${ip}/json/`).then(r => r.json()))?.country;
+  localStorage.setItem('prebid_ip', ip);
+  localStorage.setItem('prebid_geoLocation', geoLocation);
+  return {ip, geoLocation};
+}
+
+export async function sendEventToGA4(eventName, additionalPayload) {
   if (!additionalPayload) {
     additionalPayload = {};
   }
+
+  const ipAndGeoLocation = await getIpAndGeoLocation();
   const postRequestTimestamp = new Date().toISOString();
   gtag('get', 'G-HZ5RJ58ZF9', 'client_id', (clientId) => {
     const payload = {
@@ -1083,7 +1105,9 @@ export function sendEventToGA4(eventName, additionalPayload) {
         name: eventName,
         params: {
           ...additionalPayload,
-          session_id: localStorage.getItem('prebid.session_id'),
+          session_id: getSessionId(),
+          ip: ipAndGeoLocation?.ip,
+          geo_location: ipAndGeoLocation?.geoLocation,
           time_stamp: postRequestTimestamp,
           current_url: window.location.href,
         }
