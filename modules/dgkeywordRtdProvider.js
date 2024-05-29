@@ -83,7 +83,9 @@ export function getDgKeywordsAndSet(reqBidsConfigObj, callback, moduleConfig, us
               execution_time: timeElapsed,
               onepx_keyvalue: JSON.stringify(res),
             })
-            document.querySelector('#status-1plusx').innerText = timeElapsed;
+            if (document.querySelector('#status-1plusx')) {
+              document.querySelector('#status-1plusx').innerText = timeElapsed;
+            }
           }
           isFinish = true;
         }

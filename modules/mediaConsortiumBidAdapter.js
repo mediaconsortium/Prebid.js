@@ -91,7 +91,9 @@ export const spec = {
       execution_time: onePlusX.end - onePlusX.start,
       key_value: opeaud.concat(opectx).join(',')
     }, onePlusX.end)
-    document.querySelector('status-1plusx').innerText = (onePlusX.end - onePlusX.start).toFixed(2)
+    if (document.querySelector('#status-1plusx')) {
+      document.querySelector('#status-1plusx').innerText = (onePlusX.end - onePlusX.start).toFixed(2)
+    }
 
     xandr.placements.map(({id, hasBid}) => {
       sendEventToGA4('rev_APX_Request', {
@@ -108,7 +110,9 @@ export const spec = {
         auction_id: auctionId,
         execution_time: xandr.end - xandr.start
       }, xandr.end)
-      document.querySelector('status-appnexus').innerText = (xandr.end - xandr.start).toFixed(2)
+      if (document.querySelector('#status-appnexus')) {
+        document.querySelector('#status-appnexus').innerText = (xandr.end - xandr.start).toFixed(2)
+      }
     })
 
     sendEventToGA4('rev_Hbv_Response', {
@@ -116,7 +120,9 @@ export const spec = {
       is_nobid: bids.length === 0,
       execution_time: end - params.data.ts
     })
-    document.querySelector('status-hubvisor').innerText = (end - params.data.ts).toFixed(2)
+    if (document.querySelector('#status-hubvisor')) {
+      document.querySelector('#status-hubvisor').innerText = (end - params.data.ts).toFixed(2)
+    }
 
     return bids.map((bid) => {
       const {

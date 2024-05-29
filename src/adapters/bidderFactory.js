@@ -293,13 +293,16 @@ export function newBidder(spec) {
         onResponse: (resp) => {
 
           const timeElapsed = (performance.now() - localStorage.getItem('appnexusStarted')).toFixed(2)
-          const trgTag = resp.body.tags.find(() => true)
-          sendEventToGA4('crr_APX_Response', {
-            auction_id: trgTag?.auction_id,
-            is_nobid: trgTag?.nobid,
-            execution_time: timeElapsed,
-          })
-          document.querySelector('#status-appnexus').innerText = timeElapsed;
+          const trgTag = resp.body.tags?.find(() => true)
+          // NOTE: This is not needed for hb measurement
+          // sendEventToGA4('crr_APX_Response', {
+          //   auction_id: trgTag?.auction_id,
+          //   is_nobid: trgTag?.nobid,
+          //   execution_time: timeElapsed,
+          // })
+          // if (document.querySelector('#status-appnexus')) {
+          //   document.querySelector('#status-appnexus').innerText = timeElapsed;
+          // }
 
           onTimelyResponse(spec.code);
           responses.push(resp)
