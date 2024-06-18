@@ -123,7 +123,7 @@ export const spec = {
         ad: {
           creative: {id, mediaType, size: {width, height}, markup}
         },
-        ttl
+        ttl = 360
       } = bid
 
       const markupWithMacroReplaced = replaceAuctionPrice(markup, cpm)
