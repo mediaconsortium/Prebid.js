@@ -3,8 +3,15 @@ import {registerBidder} from '../src/adapters/bidderFactory.js'
 import {replaceAuctionPrice, generateUUID, isPlainObject, isArray} from '../src/utils.js'
 
 const BIDDER_CODE = 'MediaConsortium'
-const RELAY_ENDPOINT = 'https://relay.hubvisor.io/v1/auction/big'
-const OPTIMIZATIONS_STORAGE_KEY = 'media_consortium_optimizations'
+const SYNC_ENDPOINT = 'https://relay.hubvisor.io/v1/sync/big'
+const AUCTION_ENDPOINT = 'https://relay.hubvisor.io/v1/auction/big'
+export const OPTIMIZATIONS_STORAGE_KEY = 'media_consortium_optimizations'
+
+const SYNC_TYPES = {
+  image: 'image',
+  redirect: 'image',
+  iframe: 'iframe'
+}
 
 export const spec = {
   version: '0.0.1',
@@ -15,8 +22,12 @@ export const spec = {
     return true
   },
   buildRequests(bidRequests, bidderRequest) {
-    const {auctionId, bids, gdprConsent, ortb2: {device, site}} = bidderRequest
-
+    const {
+      auctionId,
+      bids,
+      gdprConsent: {gdprApplies = false, consentString} = {},
+      ortb2: {device, site}
+    } = bidderRequest
     const currentTimestamp = Date.now()
     const optimizations = getOptimizationsFromLocalStorage()
 
@@ -49,8 +60,8 @@ export const spec = {
       },
       regulations: {
         gdpr: {
-          applies: gdprConsent?.gdprApplies ?? false,
-          consentString: gdprConsent?.consentString
+          applies: gdprApplies,
+          consentString
         }
       },
       timeout: 3600
@@ -62,29 +73,47 @@ export const spec = {
       request.user.ids['1plusX'] = fpId
     }
 
-    return {
-      method: 'POST',
-      url: RELAY_ENDPOINT,
-      data: request
+    const syncData = {
+      gdpr: gdprApplies,
+      ad_unit_codes: impressions.map(({adUnitCode}) => adUnitCode).join(',')
     }
+
+    if (consentString) {
+      syncData.gdpr_consent = consentString
+    }
+
+    return [
+      {
+        method: 'GET',
+        url: SYNC_ENDPOINT,
+        data: syncData
+      },
+      {
+        method: 'POST',
+        url: AUCTION_ENDPOINT,
+        data: request
+      }
+    ]
   },
   interpretResponse(serverResponse, params) {
     if (!isValidResponse(serverResponse)) return []
 
     const {body: {bids, optimizations}} = serverResponse
 
-    const currentTimestamp = Date.now()
+    if (optimizations && isArray(optimizations)) {
+      const currentTimestamp = Date.now()
 
-    const optimizationsToStore = optimizations.reduce((acc, optimization) => {
-      const {adUnitCode, isEnabled, ttl} = optimization
+      const optimizationsToStore = optimizations.reduce((acc, optimization) => {
+        const {adUnitCode, isEnabled, ttl} = optimization
 
-      return {
-        ...acc,
-        [adUnitCode]: {isEnabled, expiresAt: currentTimestamp + ttl}
-      }
-    }, getOptimizationsFromLocalStorage())
+        return {
+          ...acc,
+          [adUnitCode]: {isEnabled, expiresAt: currentTimestamp + ttl}
+        }
+      }, getOptimizationsFromLocalStorage())
 
-    localStorage.setItem(OPTIMIZATIONS_STORAGE_KEY, JSON.stringify(optimizationsToStore))
+      localStorage.setItem(OPTIMIZATIONS_STORAGE_KEY, JSON.stringify(optimizationsToStore))
+    }
 
     return bids.map((bid) => {
       const {
@@ -94,7 +123,7 @@ export const spec = {
         ad: {
           creative: {id, mediaType, size: {width, height}, markup}
         },
-        ttl
+        ttl = 360
       } = bid
 
       const markupWithMacroReplaced = replaceAuctionPrice(markup, cpm)
@@ -114,12 +143,29 @@ export const spec = {
         adUrl: null
       }
     })
+  },
+  getUserSyncs(syncOptions, serverResponses) {
+    if (serverResponses.length !== 2) {
+      return
+    }
+
+    const [sync] = serverResponses
+
+    return sync.body?.bidders?.reduce((acc, {type, url}) => {
+      const syncType = SYNC_TYPES[type]
+
+      if (!syncType || !url) {
+        return acc
+      }
+
+      return acc.concat({type: syncType, url})
+    }, [])
   }
 }
 
 registerBidder(spec)
 
-function getOptimizationsFromLocalStorage() {
+export function getOptimizationsFromLocalStorage() {
   try {
     const storedOptimizations = localStorage.getItem(OPTIMIZATIONS_STORAGE_KEY)
 
