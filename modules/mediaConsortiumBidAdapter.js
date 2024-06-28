@@ -97,6 +97,7 @@ export const spec = {
       options: {
         useProfileApi
       }
+      ts: performance.now()
     }
 
     if (readOnePlusXId) {
@@ -132,7 +133,73 @@ export const spec = {
   interpretResponse(serverResponse, params) {
     if (!isValidResponse(serverResponse)) return []
 
-    const {body: {bids, optimizations}} = serverResponse
+    const end = performance.now()
+
+    const {
+      body: {
+        id: auctionId,
+        bids,
+        optimizations,
+        partners
+      }} = serverResponse
+
+    if (partners) {
+      const {onePlusX, xandr} = partners
+
+      if (xandr) {
+        xandr.placements.map(({id}) => {
+          sendEventToGA4('rev_Hbv_Request', {
+            cookies: document.cookie,
+            user_agent: navigator.userAgent,
+            request_url: AUCTION_ENDPOINT,
+            fpid: onePlusX.fpid,
+            placement_id: id,
+            auction_id: auctionId
+          }, params.data.ts)
+        })
+      }
+
+      if (onePlusX) {
+        const opeaud = onePlusX.opeaud ?? []
+        const opectx = onePlusX.opectx ?? []
+
+        sendEventToGA4('rev_1px_Request', {
+          cookies: document.cookie,
+          user_agent: navigator.userAgent,
+          request_url: onePlusX.url
+        }, onePlusX.start)
+
+        sendEventToGA4('rev_1px_Response', {
+          execution_time: onePlusX.end - onePlusX.start,
+          key_value: opeaud.concat(opectx).join(',')
+        }, onePlusX.end)
+      }
+
+      if (xandr) {
+        xandr.placements.map(({id, hasBid}) => {
+          sendEventToGA4('rev_APX_Request', {
+            cookies: document.cookie,
+            user_agent: navigator.userAgent,
+            request_url: xandr.url,
+            fpid: onePlusX.fpid,
+            placement_id: id,
+            auction_id: auctionId
+          }, xandr.start)
+
+          sendEventToGA4('rev_APX_Response', {
+            is_nobid: !hasBid,
+            auction_id: auctionId,
+            execution_time: xandr.end - xandr.start
+          }, xandr.end)
+        })
+      }
+
+      sendEventToGA4('rev_Hbv_Response', {
+        auction_id: auctionId,
+        is_nobid: bids.length === 0,
+        execution_time: end - params.data.ts
+      })
+    }
 
     if (optimizations && isArray(optimizations)) {
       const currentTimestamp = Date.now()
@@ -268,6 +335,64 @@ function xandrOutstreamRenderer(bid) {
         allowFullscreen: true,
         skippable: false
       }
+
     });
   });
+}
+
+function getSessionId() {
+  const gaCookie = document.cookie.split('; ').find(row => row.startsWith('_ga'));
+  if (!gaCookie) return null;
+  const gaParts = gaCookie.split('.');
+  if (gaParts.length < 4) return null;
+  return gaParts[2] + '.' + gaParts[3];
+}
+
+async function getIpAndGeoLocation() {
+  if (localStorage.getItem('prebid_ip') && localStorage.getItem('prebid_geoLocation')) {
+    return {ip: localStorage.getItem('prebid_ip'), geoLocation: localStorage.getItem('prebid_geoLocation')};
+  }
+  const ip = (await fetch('https://api.ipify.org?format=json').then(r => r.json()))?.ip
+  if (!ip) return {ip: null, geoLocation: null};
+  const geoLocation = (await fetch(`https://ipapi.co/${ip}/json/`).then(r => r.json()))?.country;
+  localStorage.setItem('prebid_ip', ip);
+  localStorage.setItem('prebid_geoLocation', geoLocation);
+  return {ip, geoLocation};
+}
+
+async function sendEventToGA4(eventName, additionalPayload, customTimestamp) {
+  if (!additionalPayload) {
+    additionalPayload = {};
+  }
+
+  const ts = customTimestamp ? new Date(customTimestamp).toISOString() : new Date().toISOString()
+  const ipAndGeoLocation = await getIpAndGeoLocation();
+
+  gtag('get', 'G-HZ5RJ58ZF9', 'client_id', (clientId) => {
+    const payload = {
+      client_id: clientId,
+      events: [{
+        name: eventName,
+        params: {
+          ...additionalPayload,
+          session_id: getSessionId(),
+          time_stamp: ts,
+          ip: ipAndGeoLocation?.ip,
+          geo_location: ipAndGeoLocation?.geoLocation,
+          current_url: window.location.href,
+        }
+      }]
+    };
+
+    console.log(`XXX Sending event (${eventName}) to GA4`, payload);
+
+    fetch('https://www.google-analytics.com/mp/collect?measurement_id=G-HZ5RJ58ZF9&api_secret=qF3YrfxBTjmfe6sE_8aCMA', {
+      mode: 'no-cors',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+  })
 }
